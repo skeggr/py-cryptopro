@@ -27,7 +27,7 @@ class ShellCommand(object):
 
     def _parse_response(self, stdout, stderr):
         if stderr:
-            if stderr.startswith('Empty certificate list'):
+            if stderr.startswith(b'Empty certificate list'):
                 return None
             else:
                 raise ShellCommandError(stderr)
@@ -79,7 +79,7 @@ class Certmgr(ShellCommand):
         res = []
         sep = re.compile(r'\d+-{7}')
 
-        for i, item in enumerate(sep.split(text)[1:], start=1):
+        for i, item in enumerate(sep.split(text.decode())[1:], start=1):
             cert_data = {}
             for line in item.split('\n'):
                 if line == '' or ':' not in line:
