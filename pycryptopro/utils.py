@@ -56,7 +56,7 @@ class Certmgr(ShellCommand):
         """
         Устанавливает сертификат
         """
-        return self.run_command('-inst', **kwargs)
+        return self.run_command('-inst', *args, **kwargs)
 
     def delete(self, *args, **kwargs):
         """
