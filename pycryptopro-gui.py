@@ -1,4 +1,5 @@
 from pycryptopro.utils import Certmgr, ShellCommand
+from pycryptopro.exceptions import *
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -29,6 +30,7 @@ class SecondaryForm(tk.Toplevel):
 
     def create_shared_widgets(self):
         self.geometry('540x410+330+330')
+        self.resizable(width=0, height=0)
         self.cont_lbl = tk.Label(self, text='Доступные контейнеры:')
         self.cont_lbl.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w')
         self.cont_list = tk.Listbox(self, height=10, width=65, selectmode=tk.SINGLE)
@@ -47,9 +49,12 @@ class SecondaryForm(tk.Toplevel):
     def configure_form(self):
         self.radio_var = None
         if self.type_of_oper == 'install':
-            self.cont_radio_btn = tk.Radiobutton(self, text='Установить из контейнера', variable=self.radio_var, value='cont', command=lambda: self.radio_select(self.cont_radio_btn))
+            self.title('Установка сертификата')
+            self.cont_radio_btn = tk.Radiobutton(self, text='Установить из контейнера', variable=self.radio_var,
+                                                 value='cont', command=lambda: self.radio_select(self.cont_radio_btn))
             self.cont_radio_btn.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='w')
-            self.file_radio_btn = tk.Radiobutton(self, text='Установить из файла', variable=self.radio_var, value='file', command=lambda: self.radio_select(self.file_radio_btn))
+            self.file_radio_btn = tk.Radiobutton(self, text='Установить из файла', variable=self.radio_var,
+                                                 value='file', command=lambda: self.radio_select(self.file_radio_btn))
             self.file_radio_btn.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky='w')
             self.cert_store_lbl = tk.Label(self, text='Установить в хранилище:')
             self.cert_store_lbl.grid(row=6, column=0, columnspan=2, padx=5, pady=10, sticky='w')
@@ -59,6 +64,7 @@ class SecondaryForm(tk.Toplevel):
             self.cont_radio_btn.invoke()
             self.export_btn.configure(text='Установить')
         if self.type_of_oper == 'export':
+            self.title('Экспорт сертификата')
             self.geometry('540x310+330+330')
             self.file_lbl.configure(text='Экспортировать в файл:')
             self.export_btn.configure(text='Экспортировать')
@@ -76,25 +82,48 @@ class SecondaryForm(tk.Toplevel):
             self.radio_var = 'cont'
 
     def browse_btn_handler(self):
-        self.file = filedialog.askopenfilename(parent=self)
+        self.file = filedialog.asksaveasfilename(parent=self)
         if self.file:
             self.file_entry.insert(0, self.file)
 
+    def check_cont_selection(self):
+                if not self.cont_list.curselection():
+                            messagebox.showerror('Ошибка', 'Не выбран ни один контейнер!', parent=self)
+                            return None
+                else:
+                    selected_cont = self.cont_list.get(self.cont_list.curselection()).decode()
+                    return selected_cont
+
     def proceed_btn_handler(self):
         if self.type_of_oper == 'export':
-            print(Certmgr().run_command('-export', '-cont', "'"+self.cont_list.selection_get()+"'", '-dest', self.file_entry.get()))
-            messagebox.showinfo('Экспорт', 'Сертификат сохранён в {0}'.format(self.file_entry.get()), parent=self)
-            self.destroy()
+            self.selected_cont = self.check_cont_selection()
+            if not self.selected_cont:
+                pass
+            elif self.selected_cont and not self.file_entry.get():
+                messagebox.showerror('Ошибка', 'Не указан файл для экспорта!', parent=self)
+            else:
+                try:
+                    Certmgr().run_command('-export', '-cont', "'"+self.selected_cont+"'", '-dest',
+                                            self.file_entry.get())
+                except ShellCommandError:
+                    messagebox.showinfo('Экспорт', 'В контейнере {0} нет сертификата'.format(self.selected_cont),
+                                        parent=self)
+                else:
+                    messagebox.showinfo('Экспорт', 'Сертификат сохранён в {0}'.format(self.file_entry.get()),
+                                        parent=self)
+                    self.destroy()
         elif self.type_of_oper == 'install':
-            #TODO select store for install
             if self.radio_var == 'cont':
-                if not self.cont_list.curselection():
-                    messagebox.showerror('Ошибка', 'Не выбран ни один контейнер!', parent=self)
+                self.selected_cont = self.check_cont_selection()
+                if not self.selected_cont:
+                    pass
                 elif not self.cert_store_combo.get():
                     messagebox.showerror('Ошибка', 'Не выбрано хранилище для установки!', parent=self)
                 else:
-                    Certmgr().inst('-cont', "'"+self.cont_list.get(self.cont_list.curselection()).decode()+"'")
-                    messagebox.showinfo('Установка', 'Сертификат из контейнера {0} установлен в хранилище {1}'.format(self.cont_list.get(self.cont_list.curselection()).decode(), 'uMy'), parent=self)
+                    Certmgr().inst('-cont', "'"+self.selected_cont+"'")
+                    messagebox.showinfo('Установка',
+                                        'Сертификат из контейнера {0} установлен в хранилище {1}'.format(self.selected_cont,
+                                                                                                         'uMy'), parent=self)
                     self.destroy()
             elif self.radio_var == 'file':
                 Certmgr().inst('-file', self.file_entry.get())
@@ -111,6 +140,14 @@ def clear_selected_sert(fn):
 
 
 class App(tk.Tk):
+
+    def __init__(self):
+        super().__init__()
+        self.geometry('400x550+300+300')
+        self.title('PyCryptopro')
+        self.resizable(width=0, height=0)
+        self.create_widgets()
+
     def create_widgets(self):
         self.nb = ttk.Notebook(self)
         self.page1 = ttk.Frame(self.nb)
@@ -135,7 +172,8 @@ class App(tk.Tk):
         self.cert_export_btn.grid(row=4, column=1, pady=5, padx=5, sticky='w')
         self.cert_export_btn = tk.Button(self.page1, text='Удалить...', command=self.delete_cert)
         self.cert_export_btn.grid(row=4, column=2, pady=5, padx=5, sticky='w')
-        self.cert_export_btn = tk.Button(self.page1, text='Экспортировать из контейнера...', command=self.export_from_cont)
+        self.cert_export_btn = tk.Button(self.page1, text='Экспортировать из контейнера...',
+                                         command=self.export_from_cont)
         self.cert_export_btn.grid(row=5, column=0, columnspan=3, pady=5, padx=5, sticky='w')
 
     def export_from_cont(self):
@@ -158,11 +196,15 @@ class App(tk.Tk):
             return []
 
     def find_thumbprint(self):
-        return next(cert.thumbprint for cert in self.certs if cert.subject.as_dict()['CN'] == self.cert_list.selection_get())
+        return next(cert.thumbprint for cert in self.certs if
+                    cert.subject.as_dict()['CN'] == self.cert_list.selection_get())
 
     @clear_selected_sert
     def delete_cert(self):
-        if self.selected_cert and messagebox.askyesno('Удаление сертификата', message='Удалить сертификат "{0}" из хранилища {1}?'.format(self.selected_cert, self.cert_store_combo.get())):
+        if (self.selected_cert and
+                messagebox.askyesno('Удаление сертификата',
+                                    message='Удалить сертификат "{0}" из хранилища {1}?'.format(self.selected_cert,
+                                                                                                self.cert_store_combo.get()))):
             result = Certmgr().delete('-store', self.cert_store_combo.get(), '-thumbprint', self.find_thumbprint())
             print(result)
             self.get_certs()
@@ -171,7 +213,9 @@ class App(tk.Tk):
         if self.selected_cert:
             file = filedialog.asksaveasfilename()
             if file:
-                result = Certmgr().run_command('-export', '-store', self.cert_store_combo.get(), '-thumbprint', self.find_thumbprint(), '-dest', file)
+                result = Certmgr().run_command('-export', '-store',
+                                               self.cert_store_combo.get(), '-thumbprint', self.find_thumbprint(),
+                                               '-dest', file)
                 messagebox.showinfo('Экспорт', 'Сертификат {0} экспортирован в файл {1}'.format(
                     self.selected_cert, file))
                 print(result)
@@ -200,13 +244,14 @@ class App(tk.Tk):
                 self.cert_prop_text.configure(state=tk.NORMAL)
                 self.cert_prop_text.delete(1.0, tk.END)
                 person = cert.subject.as_dict()
-                props = ({'Имя': person['CN']}, {'Подразделение': person['OU']}, {'Организация': person['O']}, {'E-mail': person['E']}, {'Годен до': cert.valid_to}, {'Номер': cert.serial}, {'Отпечаток:': cert.thumbprint}, {'Издатель': cert.issuer})
+                props = ({'Имя': person['CN']},
+                         {'Подразделение': person['OU']}, {'Организация': person['O']}, {'E-mail': person['E']},
+                         {'Годен до': cert.valid_to}, {'Номер': cert.serial}, {'Отпечаток:': cert.thumbprint},
+                         {'Закрытый ключ': cert.privatekey_link}, {'Издатель': cert.issuer})
                 for elem in props:
                     self.formatting_and_output(**elem)
                 self.cert_prop_text.configure(state=tk.DISABLED)
 
 if __name__ == '__main__':
     root = App()
-    root.create_widgets()
-    root.geometry('400x550+300+300')
     root.mainloop()

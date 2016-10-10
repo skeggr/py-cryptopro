@@ -110,6 +110,9 @@ class Certmgr(ShellCommand):
         if key in ('sha1_hash', 'serial'):
             val = val.replace('0x', '')
 
+        if key == 'privatekey_link' and val.startswith('Yes'):
+            val = val.split(':')[1].strip()
+
         return key, val
 
     @staticmethod
@@ -127,7 +130,8 @@ class Certmgr(ShellCommand):
             valid_from=_str_to_datetime(data['not_valid_before']),
             valid_to=_str_to_datetime(data['not_valid_after']),
             issuer=PersonalInfo(data['issuer']),
-            subject=PersonalInfo(data['subject'])
+            subject=PersonalInfo(data['subject']),
+            privatekey_link=data['privatekey_link']
         )
         return cert
 
@@ -162,13 +166,14 @@ class Certificate(object):
     Сертификат
     """
 
-    def __init__(self, thumbprint, serial, valid_from, valid_to, issuer, subject):
+    def __init__(self, thumbprint, serial, valid_from, valid_to, issuer, subject, privatekey_link):
         self.thumbprint = thumbprint
         self.serial = serial
         self.valid_from = valid_from
         self.valid_to = valid_to
         self.issuer = issuer
         self.subject = subject
+        self.privatekey_link = privatekey_link
 
 
 class Cryptcp(ShellCommand):
